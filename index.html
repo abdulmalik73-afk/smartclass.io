@@ -7512,6 +7512,148 @@ Setiap angka dipisah baris baru atau tab:`);if(!e||!e.trim())return;let t=e.trim
         SDN Banyurip • Belajar Cerdas, Berkarakter & Menyenangkan
       </div>
     </div>
-  `}document.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.btn-delete-literasi`);if(n){e.preventDefault(),e.stopPropagation();let t=n.getAttribute(`data-id`);t&&(pe(t),I(),Q());return}let r=t.closest(`.btn-reset-matriks-cbt-student`);if(r){e.preventDefault(),e.stopPropagation();let t=r.getAttribute(`data-nisn`);t&&(Ve(t),I(),Q())}}),document.addEventListener(`keydown`,e=>{if(e.key!==`Enter`)return;let t=e.target;if(t){if(t.id===`login-nisn`||t.id===`login-pin`){e.preventDefault();let t=document.getElementById(`btn-submit-login-murid`);t&&t.click()}else if(t.id===`login-guru-user`||t.id===`login-guru-pwd`){e.preventDefault();let t=document.getElementById(`btn-submit-login-guru`);t&&t.click()}}});async function Rj(e){if(await hl()){Cl({isLoading:!0,error:null}),Q();try{Cl({files:await vl(e||Sl.currentFolderId,Sl.search),isLoading:!1,error:null})}catch(e){console.error(`Error listing Drive files:`,e),Cl({isLoading:!1,error:e?.message||`Gagal memuat berkas dari Google Drive`})}Q()}}pl((e,t)=>{console.log(`[AUTH] Google Drive user authenticated:`,e?.email),q===`google-drive`&&Rj()},()=>{}),window.renderApp=Q,window.addEventListener(`keydown`,e=>{if(e.key!==`Enter`)return;let t=e.target;if(t){if(t.id===`login-nisn`||t.id===`login-pin`){e.preventDefault();let t=document.getElementById(`btn-submit-login-murid`);t&&t.click()}else if(t.id===`login-guru-user`||t.id===`login-guru-pwd`){e.preventDefault();let t=document.getElementById(`btn-submit-login-guru`);t&&t.click()}}}),Mj(),Q();</script>
+  `}document.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.btn-delete-literasi`);if(n){e.preventDefault(),e.stopPropagation();let t=n.getAttribute(`data-id`);t&&(pe(t),I(),Q());return}let r=t.closest(`.btn-reset-matriks-cbt-student`);if(r){e.preventDefault(),e.stopPropagation();let t=r.getAttribute(`data-nisn`);t&&(Ve(t),I(),Q())}}),document.addEventListener(`keydown`,e=>{if(e.key!==`Enter`)return;let t=e.target;if(t){if(t.id===`login-nisn`||t.id===`login-pin`){e.preventDefault();let t=document.getElementById(`btn-submit-login-murid`);t&&t.click()}else if(t.id===`login-guru-user`||t.id===`login-guru-pwd`){e.preventDefault();let t=document.getElementById(`btn-submit-login-guru`);t&&t.click()}}});async function Rj(e){if(await hl()){Cl({isLoading:!0,error:null}),Q();try{Cl({files:await vl(e||Sl.currentFolderId,Sl.search),isLoading:!1,error:null})}catch(e){console.error(`Error listing Drive files:`,e),Cl({isLoading:!1,error:e?.message||`Gagal memuat berkas dari Google Drive`})}Q()}}
+/* ===== SINKRONISASI FIRESTORE (Tahap 1: guru menulis, semua perangkat membaca) ===== */
+function __makeSync(E){
+  const PID='gen-lang-client-0347854172',API='AIzaSyBRczXHPtcO7kX4gpxbLm91BkKNhy9kCS0';
+  const ROOT=`projects/${PID}/databases/(default)/documents`,BASE=`https://firestore.googleapis.com/v1/${ROOT}`;
+  const KEYS=['students','schedule','piket_full','piket_task_list','attendance','cash_tx','savings_tx','assessment_settings','assessment_entries','scores','certificates','kkm_score','teacher_profile','galeri_kegiatan','questions','materials','inventaris'];
+  const LABEL={students:'Data siswa',schedule:'Jadwal pelajaran',piket_full:'Jadwal piket',piket_task_list:'Daftar tugas piket',attendance:'Absensi',cash_tx:'Kas kelas',savings_tx:'Tabungan',assessment_settings:'Pengaturan penilaian',assessment_entries:'Nilai asesmen',scores:'Rekap nilai',certificates:'Sertifikat',kkm_score:'KKM',teacher_profile:'Profil guru',galeri_kegiatan:'Galeri kegiatan',questions:'Bank soal',materials:'Materi pelajaran',inventaris:'Inventaris'};
+  const cfg={debounce:1500,chunk:250000,max:3000000,timeout:10000,retry:20000};
+  const proto=E.proto,ls=E.ls,rawGet=proto.getItem,rawSet=proto.setItem;
+  const lsName=k=>k==='inventaris'?'smartclass_inventaris':E.prefix+k;
+  const byName={};KEYS.forEach(k=>byName[lsName(k)]=k);
+  const st={online:false,initialized:false,booted:false,meta:{},last:{},dirty:new Set(),timers:{},pushing:{},again:{},msg:'',err:false};
+  const isGuru=()=>{try{const s=E.session();return !!s&&s.role==='guru'}catch(e){return false}};
+  const getRaw=n=>rawGet.call(ls,n),setRaw=(n,v)=>rawSet.call(ls,n,v);
+  async function fetchT(url,opt){const c=new AbortController(),t=setTimeout(()=>c.abort(),cfg.timeout);try{return await E.fetch(url,Object.assign({},opt||{},{signal:c.signal}))}finally{clearTimeout(t)}}
+  function splitStr(s,size){const out=[];let i=0;while(i<s.length){let e=Math.min(i+size,s.length);if(e<s.length){const c=s.charCodeAt(e-1);if(c>=0xD800&&c<=0xDBFF)e-=1}out.push(s.slice(i,e));i=e}return out.length?out:['']}
+  const isCbt=e=>!!e&&e.score!=null&&(String(e.id||'').indexOf('cbt_')===0||String(e.note||'').indexOf('Ujian CBT')===0);
+  function mergeKeep(key,remote,local){
+    if(!local||(key!=='assessment_entries'&&key!=='scores'))return remote;
+    try{
+      const R=JSON.parse(remote),L=JSON.parse(local);if(!Array.isArray(R)||!Array.isArray(L))return remote;
+      const out=R.slice();
+      if(key==='assessment_entries'){
+        L.forEach(l=>{if(!isCbt(l))return;const i=out.findIndex(r=>r.nisn===l.nisn&&r.semester===l.semester&&r.category===l.category&&r.mapel===l.mapel);if(i<0)out.push(l);else if(out[i].score==null)out[i]=l})
+      }else{
+        L.forEach(l=>{if(l.asts==null&&l.asas==null)return;const i=out.findIndex(r=>r.nisn===l.nisn&&r.semester===l.semester&&r.mapel===l.mapel);if(i<0){out.push(l);return}
+          if(out[i].asts==null&&l.asts!=null)out[i]=Object.assign({},out[i],{asts:l.asts});if(out[i].asas==null&&l.asas!=null)out[i]=Object.assign({},out[i],{asas:l.asas})})
+      }
+      return JSON.stringify(out)
+    }catch(e){return remote}
+  }
+  function fixVersions(key){
+    if(key==='assessment_entries')setRaw(E.prefix+'cbt_assessment_version',JSON.stringify(E.Ne));
+    if(key==='scores')setRaw(E.prefix+'cbt_scores_version',JSON.stringify(E.Ee));
+    if(key==='materials')setRaw(E.prefix+'materials_version',JSON.stringify(E.ne));
+  }
+  async function pullAll(){
+    const docs=[];let tok='';
+    do{
+      const r=await fetchT(`${BASE}/sync?pageSize=100&key=${API}`+(tok?`&pageToken=${encodeURIComponent(tok)}`:''));
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const j=await r.json();(j.documents||[]).forEach(d=>docs.push(d));tok=j.nextPageToken||''
+    }while(tok);
+    const by={};let init=false;
+    docs.forEach(d=>{const id=d.name.split('/').pop();if(id==='meta-init'){init=true;return}const m=/^(.+)-(\d+)$/.exec(id);if(!m||KEYS.indexOf(m[1])<0)return;(by[m[1]]=by[m[1]]||{})[+m[2]]=d});
+    const changed=[],guru=isGuru();
+    for(const key of KEYS){
+      const g=by[key];if(!g||!g[0])continue;
+      const f0=g[0].fields||{};const n=parseInt((f0.n&&f0.n.integerValue)||'1',10);
+      let s='',ok=true;for(let i=0;i<n;i++){const d=g[i];if(!d||!d.fields||!d.fields.json){ok=false;break}s+=d.fields.json.stringValue||''}
+      if(!ok)continue;
+      const name=lsName(key),cur=getRaw(name),nv=guru?s:mergeKeep(key,s,cur);
+      if(nv!==cur){setRaw(name,nv);changed.push(key);st.dirty.delete(key)}
+      st.last[key]=s;st.meta[key]={ut:g[0].updateTime,n};fixVersions(key)
+    }
+    st.initialized=init;st.online=true;return changed
+  }
+  const errMsg=(t,status)=>{let m='';try{m=JSON.parse(t).error.message}catch(e){}if(status===403)m='Akun Google ini tidak diizinkan menulis (periksa Rules dan email guru). '+m;return m||('HTTP '+status)};
+  const isConflict=(status,t)=>status===409||((status===400||status===404)&&/FAILED_PRECONDITION|ABORTED|ALREADY_EXISTS|NOT_FOUND/.test(t));
+  async function conflict(key){
+    try{await pullAll()}catch(e){}
+    st.dirty.delete(key);ui();
+    try{E.alert(`${LABEL[key]} sudah diubah dari perangkat lain, jadi data dimuat ulang dari server.\n\nPerubahan terakhir Anda di perangkat ini tidak tersimpan. Silakan ulangi.`)}catch(e){}
+    E.rerender()
+  }
+  function scheduleRetry(key){clearTimeout(st.timers[key]);st.timers[key]=setTimeout(()=>push(key),cfg.retry)}
+  async function push(key){
+    if(st.pushing[key]){st.again[key]=true;return true}
+    const u=E.user();if(!u){ui();return false}
+    const val=getRaw(lsName(key));
+    if(val==null||val===st.last[key]){st.dirty.delete(key);ui();return true}
+    if(val.length>cfg.max){st.err=true;st.msg=`${LABEL[key]} terlalu besar untuk disinkronkan`;st.dirty.delete(key);ui();return false}
+    st.pushing[key]=true;let okRes=false;
+    try{
+      const token=await u.getIdToken(),old=st.meta[key],parts=splitStr(val,cfg.chunk),n=parts.length,writes=[];
+      parts.forEach((p,i)=>{const w={update:{name:`${ROOT}/sync/${key}-${i}`,fields:{json:{stringValue:p},n:{integerValue:String(n)}}}};if(i===0)w.currentDocument=old?{updateTime:old.ut}:{exists:false};writes.push(w)});
+      for(let i=n;i<(old?old.n:0);i++)writes.push({delete:`${ROOT}/sync/${key}-${i}`});
+      const r=await fetchT(`${BASE}:commit?key=${API}`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({writes})});
+      if(!r.ok){const t=await r.text();if(isConflict(r.status,t)){await conflict(key);return false}throw new Error(errMsg(t,r.status))}
+      const j=await r.json();st.meta[key]={ut:j.writeResults[0].updateTime,n};st.last[key]=val;st.dirty.delete(key);st.err=false;st.msg='';okRes=true
+    }catch(e){st.err=true;st.msg=String((e&&e.message)||e);scheduleRetry(key)}
+    finally{st.pushing[key]=false;if(st.again[key]){st.again[key]=false;push(key)}ui()}
+    return okRes
+  }
+  function onWrite(name,val){
+    const key=byName[name];if(!key||!isGuru()||!st.online||!st.initialized)return;
+    if(val===st.last[key])return;
+    st.dirty.add(key);ui();clearTimeout(st.timers[key]);st.timers[key]=setTimeout(()=>push(key),cfg.debounce)
+  }
+  proto.setItem=function(k,v){const r=rawSet.apply(this,arguments);try{if(this===ls)onWrite(String(k),String(v))}catch(e){}return r};
+  async function signIn(){try{await E.signIn()}catch(e){try{E.alert('Gagal masuk dengan Google: '+((e&&e.message)||e))}catch(_){}}ui();return !!E.user()}
+  async function initialUpload(){
+    if(!E.user()&&!(await signIn()))return;
+    if(!E.confirm('Unggah data kelas dari PERANGKAT INI ke server sebagai data utama?\n\nGunakan perangkat yang datanya paling lengkap. Setelah ini semua perangkat akan membaca data dari server.'))return;
+    for(const key of KEYS){if(getRaw(lsName(key))==null)continue;const ok=await push(key);if(!ok){try{E.alert('Unggah dihentikan: '+(st.msg||'terjadi kesalahan')+'\nSilakan coba lagi.')}catch(e){}return}}
+    const u=E.user(),token=await u.getIdToken();
+    const r=await fetchT(`${BASE}:commit?key=${API}`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({writes:[{update:{name:`${ROOT}/sync/meta-init`,fields:{done:{booleanValue:true},at:{stringValue:new Date().toISOString()}}},currentDocument:{exists:false}}]})});
+    if(r.ok||r.status===409||r.status===400){st.initialized=true;st.err=false;st.msg='';try{E.alert('Data berhasil diunggah. Perangkat lain akan memakai data ini saat halaman dibuka/dimuat ulang.')}catch(e){}}
+    else{const t=await r.text();st.err=true;st.msg=errMsg(t,r.status)}
+    ui()
+  }
+  async function badgeClick(){
+    try{
+      if(!st.online){if(E.confirm('Hubungkan ulang ke server?\n\nPerubahan di perangkat ini yang belum tersimpan akan diganti oleh data server.')){await pullAll();E.rerender()}return}
+      if(!st.initialized){await initialUpload();return}
+      if(!E.user()){if(await signIn())KEYS.forEach(k=>{if(st.dirty.has(k))push(k)});return}
+      if(st.err||st.dirty.size){st.err=false;for(const k of Array.from(st.dirty))push(k);const changedAll=KEYS.filter(k=>getRaw(lsName(k))!==st.last[k]&&getRaw(lsName(k))!=null);changedAll.forEach(k=>{st.dirty.add(k);push(k)});return}
+      await pullAll();E.rerender()
+    }catch(e){st.err=true;st.msg=String((e&&e.message)||e)}
+    ui()
+  }
+  function badgeState(){
+    if(!st.online)return['☁️ Tidak tersambung — data hanya di perangkat ini (klik: hubungkan ulang)','#b45309'];
+    if(!st.initialized)return['☁️ Belum ada data di server — klik untuk unggah data perangkat ini','#b45309'];
+    if(!E.user())return['☁️ Klik untuk masuk Google agar perubahan tersimpan ke server','#b45309'];
+    if(st.err)return['☁️ Gagal sinkron: '+st.msg.slice(0,90)+' (klik: coba lagi)','#b91c1c'];
+    if(st.dirty.size)return['☁️ Menyimpan ke server…','#1d4ed8'];
+    return['☁️ Tersinkron dengan server ✓ (klik: muat ulang data)','#047857']
+  }
+  function ui(){
+    try{
+      const d=E.doc;if(!d||!d.body)return;let el=d.getElementById('sync-badge');
+      if(!isGuru()){if(el)el.style.display='none';return}
+      if(!el){el=d.createElement('button');el.id='sync-badge';el.type='button';el.style.cssText='position:fixed;left:8px;bottom:8px;z-index:9999;max-width:calc(100vw - 16px);padding:6px 10px;border-radius:999px;border:1px solid rgba(0,0,0,.15);background:#fff;font:600 11px system-ui,sans-serif;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,.15);cursor:pointer';el.addEventListener('click',badgeClick);d.body.appendChild(el)}
+      const[t,c]=badgeState();el.style.display='block';el.textContent=t;el.style.color=c
+    }catch(e){}
+  }
+  async function boot(render){
+    let done=false;const fin=()=>{if(done)return;done=true;st.booted=true;try{render()}catch(e){console.error(e)}};
+    const t=setTimeout(fin,cfg.timeout+500);
+    let changed=[];
+    try{changed=await pullAll()}catch(e){st.online=false;st.msg='Tidak dapat terhubung ke server'}
+    clearTimeout(t);
+    if(!done)fin();else if(changed.length)E.rerender();
+    ui();if(E.win&&E.win.setInterval)E.win.setInterval(ui,2000);
+    if(E.win&&E.win.addEventListener)E.win.addEventListener('beforeunload',ev=>{if(isGuru()&&st.dirty.size){ev.preventDefault();ev.returnValue=''}})
+  }
+  return{boot,pullAll,push,initialUpload,st,cfg,KEYS,lsName,ui,badgeClick,isGuru}
+}
+
+const __SY=__makeSync({prefix:`smartclass_banyurip_`,Ne:`cbt_assessment_null_v2026_v3_clean`,Ee:`cbt_scores_null_v2026_v3_clean`,ne:`materials_v2026_nentoake`,proto:Storage.prototype,ls:localStorage,fetch:(u,o)=>fetch(u,o),session:()=>Nt(),user:()=>cl.currentUser,signIn:async()=>(await ml()).user,alert:m=>alert(m),confirm:m=>confirm(m),rerender:()=>{typeof window.renderApp==`function`&&window.renderApp()},doc:document,win:window});
+try{Sj&&!Sj.innerHTML.trim()&&(Sj.innerHTML='<div style="padding:48px;text-align:center;font-family:system-ui,sans-serif;color:#475569">Memuat data kelas…</div>')}catch(e){}
+pl((e,t)=>{console.log(`[AUTH] Google Drive user authenticated:`,e?.email),q===`google-drive`&&Rj()},()=>{}),window.renderApp=Q,window.addEventListener(`keydown`,e=>{if(e.key!==`Enter`)return;let t=e.target;if(t){if(t.id===`login-nisn`||t.id===`login-pin`){e.preventDefault();let t=document.getElementById(`btn-submit-login-murid`);t&&t.click()}else if(t.id===`login-guru-user`||t.id===`login-guru-pwd`){e.preventDefault();let t=document.getElementById(`btn-submit-login-guru`);t&&t.click()}}}),__SY.boot(()=>{Mj(),Q()});</script>
 </body>
 </html>
